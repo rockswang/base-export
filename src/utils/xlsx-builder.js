@@ -26,7 +26,7 @@ export class XlsxBuilder {
 
                 if (typeof cell === 'object') {
                     if (cell._type === 'url') {
-                        ws.writeUrl(r, c, new Url(`file:///${cell._path}`).setText(cell._name || ''));
+                        ws.writeUrl(r, c, new Url(`file:///${cell._path ?? ''}`).setText(cell._name ?? ''));
                     } else {
                         ws.write(r, c, String(cell));
                     }

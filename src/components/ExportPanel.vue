@@ -16,7 +16,7 @@ const CONCURRENCY = 10
 
 function fmt(v) {
   if (v === null || v === undefined) return ''
-  if (Array.isArray(v)) return v.map(x => x.text ?? x.name ?? x).join(', ')
+  if (Array.isArray(v)) return v.map(x => x == null ? '' : x.text ?? x.name ?? x).join(', ')
   if (typeof v === 'object') return v.text ?? v.name ?? JSON.stringify(v)
   return String(v)
 }
@@ -60,11 +60,13 @@ async function mapLimit(items, limit, fn, onProgress) {
 async function fetchAttachment(url) {
   const resp = await fetch(url)
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-  const ctype = (resp.headers.get('content-type') || '')
-  if (ctype.includes('text/html') || ctype.includes('application/json')) {
+  const ctype = (resp.headers.get('content-type') || '').toLowerCase()
+  if (ctype.includes('text/html')) {
     const text = await resp.text()
     throw new Error(`Bad response (${ctype}): ${text.substring(0, 200)}`)
   }
+  // 注意：application/json 也可能是 JSON 文件本身，直接按二进制读取
+  // 飞书下载接口会正确设置 Content-Disposition: attachment
   return resp.arrayBuffer()
 }
 
@@ -78,7 +80,7 @@ function createDownloadPool(limit, onProgress) {
       const task = queue.shift(); active++
       fetchAttachment(task.url)
         .then(buffer => results.push({ ...task, buffer }))
-        .catch(e => results.push({ ...task, error: e.message }))
+        .catch(e => { console.warn('[下载失败]', task.name, task.url, e.message); results.push({ ...task, error: e.message }) })
         .finally(() => { active--; done++; onProgress?.(done, total, task.name); pump(); settleIfIdle() })
     }
   }
@@ -163,7 +165,7 @@ async function doExport() {
           const urls = await fi.getAttachmentUrls(rid)
           for (let i = 0; i < v.length; i++) {
             const path = uniqueAttachmentName(v[i].name, usedAttachmentNames)
-            col.push({ name: v[i].name, type: v[i].type, url: urls[i], token: v[i].token, path })
+            col.push({ name: v[i].name, type: v[i].type, url: urls[i] ?? null, token: v[i].token, path })
           }
         } catch (e) {
           console.warn(`[getAttachmentUrls 失败] ${af.name} rid=${rid}:`, e)
@@ -251,7 +253,7 @@ onMounted(getScopeInfo)
 
 <template>
   <div class="panel">
-    <h3>{{ $t('panel.title') }}</h3>
+    <h3><img src="/icon.png" alt="" class="plugin-icon">{{ $t('panel.title') }}</h3>
     <el-button type="primary" size="large" :loading="loading" style="width:100%" @click="doExport">
       {{ loading ? $t('button.exporting') : $t('button.export') }}
     </el-button>
@@ -278,7 +280,8 @@ onMounted(getScopeInfo)
 
 <style scoped>
 .panel { padding: 16px; }
-.panel h3 { margin-bottom: 16px; font-size: 18px; }
+.panel h3 { margin-bottom: 16px; font-size: 22px; display: flex; align-items: center; gap: 10px; }
+.plugin-icon { width: 56px; height: 56px; border-radius: 6px; }
 .help { margin-top: 12px; font-size: 13px; line-height: 1.6; color: #646a73; }
 .help p { margin: 0 0 4px; }
 .help span { color: #1f2329; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
