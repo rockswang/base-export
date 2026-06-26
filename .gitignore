@@ -28,3 +28,10 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Local development and debugging
+tests/
+docs/
+output/
+HANDOFF.md
+TODO.md
